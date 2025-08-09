@@ -3578,7 +3578,7 @@ elseif PlaceId == 2534724415 then
 
 
 
-local MovementGroupbox = Tabs.Localplayer:AddLeftGroupbox("Localplayer", "user")
+local MovementGroupbox = Tabs.Localplayer:AddLeftGroupbox("Localplayer", "")
 
 --// Walkspeed
 local WalkspeedToggle = MovementGroupbox:AddToggle("WalkspeedToggle", {
@@ -3642,200 +3642,17 @@ local NoclipToggle = MovementGroupbox:AddToggle("Noclip", {
     end
 })
 
+MovementGroupbox:AddDivider()
 
 
-
-
-    	_G.NoFallDamage = false
-
-	do
-		local NoFallMeta, ChatMeta, ModMeta = table.clone(OriginalMETA), table.clone(OriginalMETA), table.clone(OriginalMETA)
-		local OldNamecall = OriginalMETA.__namecall
-
-		NoFallMeta.__namecall = newcclosure(LPH_NO_VIRTUALIZE(function(...)
-			if not checkcaller() and getnamecallmethod() == "FireServer" then
-				local Self = ({...})[1]
-				if Self == EnviromentRemote and _G.NoFallDamage then
-					return
-				elseif Self == EquippedHandcuffs and _G.AutoArrest and ({...})[2] == false then
-					return
-				end
-			end
-
-			return OldNamecall(...)
-		end))
-
-		ChatMeta.__namecall = newcclosure(function(...) -- CHAT BYPASSER
-			local Args = {...}
-
-			if getnamecallmethod() == "FireServer" and Args[1] and Args[2] then
-				if typeof(Args[2]) == "string" and _G.ChatBypass then
-					Args[2] = BypassLib:Bypass(Args[2])
-				end
-			end
-
-			return OldNamecall(table.unpack(Args))
-		end)
-		
-		ModMeta.__namecall = newcclosure(function(...)
-			local Args = {...}
-
-			if getnamecallmethod() == "FireServer" and Args[1] and Args[2] then
-				if typeof(Args[2]) == "table" and Args[2].DORBLX_IS_HOT then
-					OnChatted(":to "..Args[2].PlayerName, true)
-					return
-				end
-			end
-			
-			return OldNamecall(table.unpack(Args))
-		end)
-
-		Setrawmetatable(EquippedHandcuffs, NoFallMeta)
-		Setrawmetatable(EnviromentRemote, NoFallMeta)
-
-		if LRM_IsUserPremium or LRM_UserNote ~= "Ad Reward" then
-			task.spawn(function()
-				while task.wait(1) do
-					if getrawmetatable(AcceptedModRequest) == getrawmetatable(game) then
-						Setrawmetatable(AcceptedModRequest, ModMeta)
-					end
-				end
-			end)
-			Setrawmetatable(Chat, ChatMeta)
-		else
-			ChatMeta = nil
-		end
-	end
-
-
-local NFDToggle = MovementGroupbox:AddToggle("NFDToggle", {
-    Text = "No Fall Damage",
-    Default = false,
-    Tooltip = "No Fall Damage",
-    Callback = function(Value)
-		_G.NoFallDamage = Value
-    end
+local InstantRespawnButton = MovementGroupbox:AddButton({
+    Text = "Respawn Using Magic",
+    Func = function()
+        Functions.Respawn()
+    end,
+    DoubleClick = false -- Requires double-click for risky actions
 })
 
-local InstantRespawnToggle = MovementGroupbox:AddToggle("InstantRespawnToggle", {
-    Text = "Instant Respawn",
-    Default = false,
-    Tooltip = "Respawn instantly when you die",
-    Callback = function(Value)
-		_G.InstantRespawn = Value
-    end
-})
-
-local AntiArrestToggle = MovementGroupbox:AddToggle("AntiArrestToggle", {
-    Text = "Anti Arrest",
-    Default = false,
-    Tooltip = "Respawns when you get put in cuffs",
-    Callback = function(Value)
-		if OldAntiArrestConnect then
-			OldAntiArrestConnect:Disconnect()
-			OldAntiArrestConnect = nil
-		end
-
-		if Value then
-			OldAntiArrestConnect = LocalPlayer.ChildAdded:Connect(function(Child)
-				if Child.Name == "In_Handcuffs" or Child.Name == "Detained" then
-					Functions:Respawn()
-				end
-			end)
-		end
-    end
-})
-
-
-
-local FreeRefuelToggle = MovementGroupbox:AddToggle("FreeRefuelToggle", {
-    Text = "Free Instant Refuel",
-    Default = false,
-    Tooltip = "Refill your car's fuel instantly for free",
-    Callback = function(Value)
-		_G.InstantRefuel = Value
-    end
-})
-
-local ArrestAuraToggle = MovementGroupbox:AddToggle("ArrestAuraToggle", {
-    Text = "Arrest Aura",
-    Default = false,
-    Tooltip = "Arrest nearby criminals",
-    Callback = function(Value)
-		if LRM_IsUserPremium and LRM_UserNote ~= "Ad Reward" then
-			_G.ArrestAura = Value
-			ArrestAura()
-		elseif Value then
-			WindUI:Notify({
-				Title = "Warning (Premium Feature)",
-				Description = "'Arrest Aura' is a Premium feature, buy ERX Premium to be able to use this feature (check in the Discord Server how).",
-				Duration = 10,
-			})
-		end
-    end
-})
-
-
-local AutoArrestToggle
-AutoArrestToggle = MovementGroupbox:AddToggle("AutoArrestToggle", {
-    Text = "Auto Arrest",
-    Default = false,
-    Tooltip = "Autofarm Arrest criminals",
-    Callback = function(Value)
-        if Value and (not LRM_IsUserPremium or LRM_UserNote == "Ad Reward") then
-            AutoArrestToggle:SetValue(false)
-            Library:Notify({
-                Title = "Warning (Premium Feature)",
-                Description = "'Auto Arrest' is a Premium feature. Buy ERX Premium to use this feature (see Discord for info).",
-                Duration = 10,
-            })
-        elseif Value and not Functions:IsDisablerOn() then
-            AutoArrestToggle:SetValue(false)
-            Library:Notify({
-                Title = "AutoArrest",
-                Description = "Please enable God Mode to use Auto Arrest.",
-                Duration = 10,
-            })
-        else
-            _G.AutoArrest = Value
-            local Message = AutoArrest()
-            if Value then
-                AutoArrestToggle:SetValue(false)
-            end
-
-            if Message then
-                Library:Notify({
-                    Title = "AutoArrest",
-                    Description = Message,
-                    Duration = 10,
-                })
-            end
-        end
-    end
-})
-
-
-
-local AASlider = MovementGroupbox:AddSlider("MySlider", {
-    Text = "Arrest Aura Distance",
-    Default = 12,
-    Min = 1,
-    Max = 15,
-    Rounding = 0,
-    Compact = false,
-    Callback = function(NumberValue)
-        _G.ArrestAuraDistance = tonumber(NumberValue)
-    end
-})
-
-	LocalPlayer.CharacterAdded:Connect(function(NewChar)
-		local Humanoid = NewChar:WaitForChild("Humanoid", 9e9)
-		Humanoid.HealthChanged:Connect(function(NewHealth)
-			if _G.InstantRespawn and NewHealth < 0.11 then
-				Functions:Respawn()
-			end
-		end)
-	end)
 
 local TryingGodMode = false
 
@@ -3973,22 +3790,147 @@ local GodModeButton = MovementGroupbox:AddButton({
 })
 
 
+local UtilitiesGroupbox = Tabs.Localplayer:AddRightGroupbox("Utilities", "")
 
-local InstantRespawnButton = MovementGroupbox:AddButton({
-    Text = "Respawn Using Magic",
-    Func = function()
-        Functions.Respawn()
-    end,
-    DoubleClick = false -- Requires double-click for risky actions
+local InstIneractToggle = UtilitiesGroupbox:AddToggle("InstantInteract", {
+    Text = "Instant Interact",
+    Default = false,
+    Tooltip = "Skips hold time",
+    Callback = function(Value)
+		if LRM_IsUserPremium and LRM_UserNote ~= "Ad Reward" then
+			_G.InstaProxityPrompt = Value
+			InstaProxityPrompt()
+		elseif Value then
+            Library:Notify({
+            Title = "Warning (Premium Feature)",
+            Description = "'Instant Interact' is a Premium feature, buy ERX Premium to be able to use this feature (check in the Discord Server how).",
+            Time = 5,
+        })
+		end
+    end
 })
 
 
+
+    	_G.NoFallDamage = false
+
+	do
+		local NoFallMeta, ChatMeta, ModMeta = table.clone(OriginalMETA), table.clone(OriginalMETA), table.clone(OriginalMETA)
+		local OldNamecall = OriginalMETA.__namecall
+
+		NoFallMeta.__namecall = newcclosure(LPH_NO_VIRTUALIZE(function(...)
+			if not checkcaller() and getnamecallmethod() == "FireServer" then
+				local Self = ({...})[1]
+				if Self == EnviromentRemote and _G.NoFallDamage then
+					return
+				elseif Self == EquippedHandcuffs and _G.AutoArrest and ({...})[2] == false then
+					return
+				end
+			end
+
+			return OldNamecall(...)
+		end))
+
+		ChatMeta.__namecall = newcclosure(function(...) -- CHAT BYPASSER
+			local Args = {...}
+
+			if getnamecallmethod() == "FireServer" and Args[1] and Args[2] then
+				if typeof(Args[2]) == "string" and _G.ChatBypass then
+					Args[2] = BypassLib:Bypass(Args[2])
+				end
+			end
+
+			return OldNamecall(table.unpack(Args))
+		end)
+		
+		ModMeta.__namecall = newcclosure(function(...)
+			local Args = {...}
+
+			if getnamecallmethod() == "FireServer" and Args[1] and Args[2] then
+				if typeof(Args[2]) == "table" and Args[2].DORBLX_IS_HOT then
+					OnChatted(":to "..Args[2].PlayerName, true)
+					return
+				end
+			end
+			
+			return OldNamecall(table.unpack(Args))
+		end)
+
+		Setrawmetatable(EquippedHandcuffs, NoFallMeta)
+		Setrawmetatable(EnviromentRemote, NoFallMeta)
+
+		if LRM_IsUserPremium or LRM_UserNote ~= "Ad Reward" then
+			task.spawn(function()
+				while task.wait(1) do
+					if getrawmetatable(AcceptedModRequest) == getrawmetatable(game) then
+						Setrawmetatable(AcceptedModRequest, ModMeta)
+					end
+				end
+			end)
+			Setrawmetatable(Chat, ChatMeta)
+		else
+			ChatMeta = nil
+		end
+	end
+
+
+local NFDToggle = UtilitiesGroupbox:AddToggle("NFDToggle", {
+    Text = "No Fall Damage",
+    Default = false,
+    Tooltip = "No Fall Damage",
+    Callback = function(Value)
+		_G.NoFallDamage = Value
+    end
+})
+
+local InstantRespawnToggle = UtilitiesGroupbox:AddToggle("InstantRespawnToggle", {
+    Text = "Instant Respawn",
+    Default = false,
+    Tooltip = "Respawn instantly when you die",
+    Callback = function(Value)
+		_G.InstantRespawn = Value
+    end
+})
+
+local AntiArrestToggle = UtilitiesGroupbox:AddToggle("AntiArrestToggle", {
+    Text = "Anti Arrest",
+    Default = false,
+    Tooltip = "Respawns when you get put in cuffs",
+    Callback = function(Value)
+		if OldAntiArrestConnect then
+			OldAntiArrestConnect:Disconnect()
+			OldAntiArrestConnect = nil
+		end
+
+		if Value then
+			OldAntiArrestConnect = LocalPlayer.ChildAdded:Connect(function(Child)
+				if Child.Name == "In_Handcuffs" or Child.Name == "Detained" then
+					Functions:Respawn()
+				end
+			end)
+		end
+    end
+})
+
+
+
+local FreeRefuelToggle = MovementGroupbox:AddToggle("FreeRefuelToggle", {
+    Text = "Free Instant Refuel",
+    Default = false,
+    Tooltip = "Refill your car's fuel instantly for free",
+    Callback = function(Value)
+		_G.InstantRefuel = Value
+    end
+})
+
+
+MovementGroupbox:AddDivider()
 
 
 local MoneyAuraToggle = MovementGroupbox:AddToggle("MoneyAuraToggle", {
     Text = "Money Aura",
     Default = false,
-    Tooltip = "This is a toggle",
+    Tooltip = "Pick up nearby dropped money",
     Callback = function(Value)
         _G.AutoPickupMoney = Value
     end
@@ -4003,6 +3945,47 @@ local MADistanceSlider = MovementGroupbox:AddSlider("MAFistanceSlider", {
     Compact = false,
     Callback = function(Value)
         _G.MoneyAuraSize = tonumber(Value)
+    end
+})
+
+MovementGroupbox:AddDivider()
+
+local FreecamToggle = UtilitiesGroupbox:AddToggle("Freecam", {
+    Text = "Freecam",
+    Default = false,
+    Tooltip = "Freecam",
+    Callback = function(Value)
+		_G.Freecam = Value
+
+		if Value and FreecamLib:IsEnabled() then
+			task.spawn(function()
+				FreecamLib:ToggleFreecam()
+			end)
+			return
+		end
+
+		if Value then
+			task.spawn(function()
+				FreecamLib:ToggleFreecam()
+			end)
+
+			task.spawn(pcall, function()
+				HumanoidRootPart.Anchored = true
+				while _G.Freecam and task.wait() do
+					task.spawn(function()
+						Functions:RenderPosition(Camera.CFrame.Position)
+					end)
+				end
+
+				task.spawn(function()
+					Functions:StopRendering()
+				end)
+				FreecamLib:ToggleFreecam()
+				task.delay(1, function()
+					HumanoidRootPart.Anchored = false
+				end)
+			end)
+		end
     end
 })
 
@@ -4043,6 +4026,92 @@ local BasketBallButton = MovementGroupbox:AddButton({
 
 
 
+local PoliceGroupbox = Tabs.Localplayer:AddLeftGroupbox("Police", "")
+
+local ArrestAuraToggle = PoliceGroupbox:AddToggle("ArrestAuraToggle", {
+    Text = "Arrest Aura",
+    Default = false,
+    Tooltip = "Arrest nearby criminals",
+    Callback = function(Value)
+		if LRM_IsUserPremium and LRM_UserNote ~= "Ad Reward" then
+			_G.ArrestAura = Value
+			ArrestAura()
+		elseif Value then
+			WindUI:Notify({
+				Title = "Warning (Premium Feature)",
+				Description = "'Arrest Aura' is a Premium feature, buy ERX Premium to be able to use this feature (check in the Discord Server how).",
+				Duration = 10,
+			})
+		end
+    end
+})
+
+local ArrestAuraSlider = PoliceGroupbox:AddSlider("ArrestDistanceSlider", {
+    Text = "Arrest Aura Distance",
+    Default = 12,
+    Min = 1,
+    Max = 15,
+    Rounding = 0,
+    Compact = false,
+    Callback = function(NumberValue)
+        _G.ArrestAuraDistance = tonumber(NumberValue)
+    end
+})
+
+
+local AutoArrestToggle
+AutoArrestToggle = PoliceGroupbox:AddToggle("AutoArrestToggle", {
+    Text = "Auto Arrest",
+    Default = false,
+    Tooltip = "Autofarm Arrest criminals",
+    Callback = function(Value)
+        if Value and (not LRM_IsUserPremium or LRM_UserNote == "Ad Reward") then
+            AutoArrestToggle:SetValue(false)
+            Library:Notify({
+                Title = "Warning (Premium Feature)",
+                Description = "'Auto Arrest' is a Premium feature. Buy ERX Premium to use this feature (see Discord for info).",
+                Duration = 10,
+            })
+        elseif Value and not Functions:IsDisablerOn() then
+            AutoArrestToggle:SetValue(false)
+            Library:Notify({
+                Title = "AutoArrest",
+                Description = "Please enable God Mode to use Auto Arrest.",
+                Duration = 10,
+            })
+        else
+            _G.AutoArrest = Value
+            local Message = AutoArrest()
+            if Value then
+                AutoArrestToggle:SetValue(false)
+            end
+
+            if Message then
+                Library:Notify({
+                    Title = "AutoArrest",
+                    Description = Message,
+                    Duration = 10,
+                })
+            end
+        end
+    end
+})
+
+
+
+
+
+	LocalPlayer.CharacterAdded:Connect(function(NewChar)
+		local Humanoid = NewChar:WaitForChild("Humanoid", 9e9)
+		Humanoid.HealthChanged:Connect(function(NewHealth)
+			if _G.InstantRespawn and NewHealth < 0.11 then
+				Functions:Respawn()
+			end
+		end)
+	end)
+
+
+
 
 local AdminCommandNToggle = MovementGroupbox:AddToggle("AdminCmdNotify", {
     Text = "Admin Command Notifier",
@@ -4065,64 +4134,8 @@ local ChatLogsToggle = MovementGroupbox:AddToggle("ChatLogs", {
 
 
 
-local InstIneractToggle = MovementGroupbox:AddToggle("InstantInteract", {
-    Text = "Instant Interact",
-    Default = false,
-    Tooltip = "This is a toggle",
-    Callback = function(Value)
-		if LRM_IsUserPremium and LRM_UserNote ~= "Ad Reward" then
-			_G.InstaProxityPrompt = Value
-			InstaProxityPrompt()
-		elseif Value then
-            Library:Notify({
-            Title = "Warning (Premium Feature)",
-            Description = "'Instant Interact' is a Premium feature, buy ERX Premium to be able to use this feature (check in the Discord Server how).",
-            Time = 5,
-        })
-		end
-    end
-})
 
 
-
-local FreecamToggle = MovementGroupbox:AddToggle("Freecam", {
-    Text = "Freecam",
-    Default = false,
-    Tooltip = "This is a toggle",
-    Callback = function(Value)
-		_G.Freecam = Value
-
-		if Value and FreecamLib:IsEnabled() then
-			task.spawn(function()
-				FreecamLib:ToggleFreecam()
-			end)
-			return
-		end
-
-		if Value then
-			task.spawn(function()
-				FreecamLib:ToggleFreecam()
-			end)
-
-			task.spawn(pcall, function()
-				HumanoidRootPart.Anchored = true
-				while _G.Freecam and task.wait() do
-					task.spawn(function()
-						Functions:RenderPosition(Camera.CFrame.Position)
-					end)
-				end
-
-				task.spawn(function()
-					Functions:StopRendering()
-				end)
-				FreecamLib:ToggleFreecam()
-				task.delay(1, function()
-					HumanoidRootPart.Anchored = false
-				end)
-			end)
-		end
-    end
-})
 
 
 
