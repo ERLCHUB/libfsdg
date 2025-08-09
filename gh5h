@@ -3578,22 +3578,40 @@ elseif PlaceId == 2534724415 then
 
 
 
-local MovementGroupbox = Tabs.Localplayer:AddLeftGroupbox("Localplayer", "")
+MovementGroupbox = Tabs.Localplayer:AddLeftGroupbox("Localplayer", "")
 
---// Walkspeed
+
+
 local WalkspeedToggle = MovementGroupbox:AddToggle("WalkspeedToggle", {
     Text = "Walkspeed Changer",
     Default = false,
-    Tooltip = "Change your walkspeed",
+})
+
+WalkspeedToggle:OnChanged(function(Value)
+    if Value and Toggles.FlyToggle and Toggles.FlyToggle.Value then
+        Library:Notify("Disable Fly before using Walkspeed")
+        WalkspeedToggle:SetValue(false)
+        return
+    end
+
+    _G.SpeedModify = Value
+end)
+
+WalkspeedToggle:AddKeyPicker("MyKeybind", {
+    Default = "C",
+    Text = "",
+    Mode = "Toggle",
+    SyncToggleState = true,
     Callback = function(Value)
         _G.SpeedModify = Value
+        WalkspeedToggle:SetValue(Value)
     end
 })
 
-local WalkspeedSlider = MovementGroupbox:AddSlider("WSSlider", {
-    Text = "Walkspeed",
-    Default = 16,
-    Min = 1,
+MovementGroupbox:AddSlider("MySlider", {
+    Text = "Speed",
+    Default = 0,
+    Min = 0,
     Max = 250,
     Rounding = 0,
     Compact = false,
@@ -3602,9 +3620,169 @@ local WalkspeedSlider = MovementGroupbox:AddSlider("WSSlider", {
     end
 })
 
+
 MovementGroupbox:AddDivider()
 
-    local InfiniteStaminaToggle = MovementGroupbox:AddToggle("InfiniteStaminaToggle", {
+local runService = game:GetService("RunService")
+local userInputService = game:GetService("UserInputService")
+local localPlayer = game.Players.LocalPlayer
+local workspaceCamera = workspace.CurrentCamera
+
+local flySpeed = 1
+local verticalSpeed = 1
+local flying = false
+local moveDirection = Vector3.zero
+local daflyi = false
+local fa = nil
+
+function startFlying()
+    flying = true
+end
+
+function stopFlying()
+    flying = false
+end
+
+function updateMovement()
+    local character = localPlayer.Character
+    if not character or not character.PrimaryPart then return end
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+
+    local cameraForward = workspaceCamera.CFrame.LookVector
+    local cameraRight = workspaceCamera.CFrame.RightVector
+    local cameraUp = workspaceCamera.CFrame.UpVector
+
+    local direction = Vector3.zero
+
+    if userInputService:IsKeyDown(Enum.KeyCode.W) then
+        direction = direction + cameraForward
+    end
+    if userInputService:IsKeyDown(Enum.KeyCode.S) then
+        direction = direction - cameraForward
+    end
+    if userInputService:IsKeyDown(Enum.KeyCode.A) then
+        direction = direction - cameraRight
+    end
+    if userInputService:IsKeyDown(Enum.KeyCode.D) then
+        direction = direction + cameraRight
+    end
+    if userInputService:IsKeyDown(Enum.KeyCode.Space) then
+        direction = direction + cameraUp
+    end
+    if userInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+        direction = direction - cameraUp
+    end
+
+    if direction.Magnitude > 0 then
+        direction = direction.Unit * flySpeed
+    end
+
+    local newPos = character.PrimaryPart.Position + direction
+    character:SetPrimaryPartCFrame(
+        CFrame.new(newPos) * CFrame.Angles(0, workspaceCamera.CFrame:ToEulerAnglesYXZ())
+    )
+
+    character.PrimaryPart.CFrame = CFrame.lookAt(
+        character.PrimaryPart.Position,
+        character.PrimaryPart.Position + Vector3.new(workspaceCamera.CFrame.LookVector.X, 0, workspaceCamera.CFrame.LookVector.Z).Unit * 10
+    )
+
+    if humanoid:GetState() ~= Enum.HumanoidStateType.Physics then
+        humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+    end
+end
+
+local FlyToggle = MovementGroupbox:AddToggle("FlyToggle", {
+    Text = "Enable Fly",
+    Default = false,
+    Tooltip = "Toggles fly movement",
+})
+
+FlyToggle:OnChanged(function(state)
+    daflyi = state
+    local character = localPlayer.Character
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+
+    if state then
+        fa = Instance.new("Part")
+        fa.Size = Vector3.new(4, 1, 2)
+        fa.Transparency = 1
+        fa.CastShadow = false
+        fa.Anchored = true
+        fa.CanCollide = true
+        fa.CanTouch = false
+        fa.Parent = workspace
+
+        startFlying()
+    else
+        stopFlying()
+
+        if character and character.PrimaryPart then
+            local groundRay = Ray.new(character.PrimaryPart.Position, Vector3.new(0, -500, 0))
+            local hit, pos = workspace:FindPartOnRay(groundRay, character)
+            if hit then
+                local startPos = character.PrimaryPart.Position
+                local endPos = Vector3.new(startPos.X, pos.Y + 3, startPos.Z)
+                for i = 1, 20 do
+                    local alpha = i / 20
+                    character:SetPrimaryPartCFrame(CFrame.new(startPos:Lerp(endPos, alpha)))
+                    runService.Heartbeat:Wait()
+                end
+            end
+        end
+
+        if humanoid then
+            humanoid:ChangeState(Enum.HumanoidStateType.RunningNoPhysics)
+        end
+
+        if fa then
+            fa:Destroy()
+            fa = nil
+        end
+    end
+end)
+
+FlyToggle:AddKeyPicker("FlyKeybind", {
+    Default = "F",
+    Text = "Fly Keybind",
+    Mode = "Toggle",
+    SyncToggleState = true,
+    Callback = function(_) end
+})
+
+MovementGroupbox:AddSlider("FlySpeedSlider", {
+    Text = "Fly Speed",
+    Default = 10,
+    Min = 0,
+    Max = 250,
+    Rounding = 0,
+    Compact = false,
+    Callback = function(val)
+        flySpeed = val / 10
+    end
+})
+
+runService.Heartbeat:Connect(function()
+    if daflyi then
+        pcall(function()
+            updateMovement()
+            local character = localPlayer.Character
+            if fa and character and character:FindFirstChild("HumanoidRootPart") then
+                fa.CFrame = character.HumanoidRootPart.CFrame + Vector3.new(0, -3.5, 0)
+            end
+        end)
+    end
+end)
+
+
+
+
+
+
+MovementGroupbox:AddDivider()
+
+MovementGroupbox:AddToggle("InfiniteStaminaToggle", {
     Text = "Infinite Stamina",
     Default = false,
     Tooltip = "Never run out of stamina",
@@ -3614,7 +3792,7 @@ MovementGroupbox:AddDivider()
     end
 })
 
-local InfJumpToggle = MovementGroupbox:AddToggle("Noclip", {
+MovementGroupbox:AddToggle("Noclip", {
     Text = "Infinite Jump",
     Default = false,
     Tooltip = "Lets you jump infinitely",
@@ -3632,8 +3810,75 @@ local InfJumpToggle = MovementGroupbox:AddToggle("Noclip", {
     end
 })
 
+local Player = game:GetService("Players").LocalPlayer
+local Character = Player.Character or Player.CharacterAdded:Wait()
+local UserInputService = game:GetService("UserInputService")
 
-local NoclipToggle = MovementGroupbox:AddToggle("Noclip", {
+local teleportEnabled = false
+local teleportRadius = 65
+local heightOffset = 3
+local teleportCooldown = 0 
+local lastTeleportTime = 0
+
+local ShiftClickTPToggle = MovementGroupbox:AddToggle("ShiftClickTPToggle", {
+    Text = "Click Teleport",
+    Default = false,
+    Tooltip = "Move your player by holding LeftShift and clicking an area to teleport",
+})
+
+ShiftClickTPToggle:OnChanged(function(Value)
+    teleportEnabled = Value
+end)
+
+function TeleportToPosition(position)
+    local character = Player.Character or Player.CharacterAdded:Wait()
+    if not character then return end
+
+    character:PivotTo(CFrame.new(position + Vector3.new(0, heightOffset, 0)))
+end
+
+function Notify(title, description, time)
+    Library:Notify({
+        Title = title,
+        Description = description,
+        Time = time
+    })
+end
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+
+    if teleportEnabled and input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift) then
+            local currentTime = tick()
+            if currentTime - lastTeleportTime < teleportCooldown then
+                Notify("Teleport Cooldown", "You must wait 1 second before teleporting again!", 3)
+                return
+            end
+
+            local mouse = Player:GetMouse()
+            local clickedPosition = mouse.Hit.Position
+
+            local character = Player.Character
+            if character then
+                local root = character:FindFirstChild("HumanoidRootPart")
+                if root then
+                    local distance = (clickedPosition - root.Position).Magnitude
+                    if distance <= teleportRadius then
+                        TeleportToPosition(clickedPosition)
+                        lastTeleportTime = currentTime
+                    else
+                        Notify("Teleport Error", "You cannot teleport further than 65 studs away!", 3)
+                    end
+                end
+            end
+        end
+    end
+end)
+
+
+
+MovementGroupbox:AddToggle("Noclip", {
     Text = "Noclip",
     Default = false,
     Tooltip = "Walk through walls",
@@ -3645,7 +3890,7 @@ local NoclipToggle = MovementGroupbox:AddToggle("Noclip", {
 MovementGroupbox:AddDivider()
 
 
-local InstantRespawnButton = MovementGroupbox:AddButton({
+MovementGroupbox:AddButton({
     Text = "Respawn Using Magic",
     Func = function()
         Functions.Respawn()
@@ -3781,7 +4026,7 @@ end
 
 
 
-local GodModeButton = MovementGroupbox:AddButton({
+MovementGroupbox:AddButton({
     Text = "GodMode",
     Func = function()
         EnabledGodMode()
@@ -3790,9 +4035,9 @@ local GodModeButton = MovementGroupbox:AddButton({
 })
 
 
-local UtilitiesGroupbox = Tabs.Localplayer:AddRightGroupbox("Utilities", "")
+UtilitiesGroupbox = Tabs.Localplayer:AddRightGroupbox("Utilities", "")
 
-local InstIneractToggle = UtilitiesGroupbox:AddToggle("InstantInteract", {
+UtilitiesGroupbox:AddToggle("InstantInteract", {
     Text = "Instant Interact",
     Default = false,
     Tooltip = "Skips hold time",
@@ -3874,7 +4119,7 @@ local InstIneractToggle = UtilitiesGroupbox:AddToggle("InstantInteract", {
 	end
 
 
-local NFDToggle = UtilitiesGroupbox:AddToggle("NFDToggle", {
+UtilitiesGroupbox:AddToggle("NFDToggle", {
     Text = "No Fall Damage",
     Default = false,
     Tooltip = "No Fall Damage",
@@ -3883,7 +4128,7 @@ local NFDToggle = UtilitiesGroupbox:AddToggle("NFDToggle", {
     end
 })
 
-local InstantRespawnToggle = UtilitiesGroupbox:AddToggle("InstantRespawnToggle", {
+UtilitiesGroupbox:AddToggle("InstantRespawnToggle", {
     Text = "Instant Respawn",
     Default = false,
     Tooltip = "Respawn instantly when you die",
@@ -3892,7 +4137,7 @@ local InstantRespawnToggle = UtilitiesGroupbox:AddToggle("InstantRespawnToggle",
     end
 })
 
-local AntiArrestToggle = UtilitiesGroupbox:AddToggle("AntiArrestToggle", {
+UtilitiesGroupbox:AddToggle("AntiArrestToggle", {
     Text = "Anti Arrest",
     Default = false,
     Tooltip = "Respawns when you get put in cuffs",
@@ -3914,7 +4159,7 @@ local AntiArrestToggle = UtilitiesGroupbox:AddToggle("AntiArrestToggle", {
 
 
 
-local FreeRefuelToggle = UtilitiesGroupbox:AddToggle("FreeRefuelToggle", {
+UtilitiesGroupbox:AddToggle("FreeRefuelToggle", {
     Text = "Free Instant Refuel",
     Default = false,
     Tooltip = "Refill your car's fuel instantly for free",
@@ -3923,34 +4168,7 @@ local FreeRefuelToggle = UtilitiesGroupbox:AddToggle("FreeRefuelToggle", {
     end
 })
 
-
-UtilitiesGroupbox:AddDivider()
-
-
-local MoneyAuraToggle = UtilitiesGroupbox:AddToggle("MoneyAuraToggle", {
-    Text = "Money Aura",
-    Default = false,
-    Tooltip = "Pick up nearby dropped money",
-    Callback = function(Value)
-        _G.AutoPickupMoney = Value
-    end
-})
-
-local MADistanceSlider = UtilitiesGroupbox:AddSlider("MAFistanceSlider", {
-    Text = "MoneyAura Distance",
-    Default = 13,
-    Min = 1,
-    Max = 13,
-    Rounding = 0,
-    Compact = false,
-    Callback = function(Value)
-        _G.MoneyAuraSize = tonumber(Value)
-    end
-})
-
-UtilitiesGroupbox:AddDivider()
-
-local FreecamToggle = UtilitiesGroupbox:AddToggle("Freecam", {
+UtilitiesGroupbox:AddToggle("Freecam", {
     Text = "Freecam",
     Default = false,
     Tooltip = "Freecam",
@@ -3989,9 +4207,35 @@ local FreecamToggle = UtilitiesGroupbox:AddToggle("Freecam", {
     end
 })
 
+UtilitiesGroupbox:AddDivider()
 
 
-local BasketBallButton = UtilitiesGroupbox:AddButton({
+UtilitiesGroupbox:AddToggle("MoneyAuraToggle", {
+    Text = "Money Aura",
+    Default = false,
+    Tooltip = "Pick up nearby dropped money",
+    Callback = function(Value)
+        _G.AutoPickupMoney = Value
+    end
+})
+
+UtilitiesGroupbox:AddSlider("MAFistanceSlider", {
+    Text = "MoneyAura Distance",
+    Default = 13,
+    Min = 1,
+    Max = 13,
+    Rounding = 0,
+    Compact = false,
+    Callback = function(Value)
+        _G.MoneyAuraSize = tonumber(Value)
+    end
+})
+
+UtilitiesGroupbox:AddDivider()
+
+
+
+UtilitiesGroupbox:AddButton({
     Text = "Get Basketball",
     Func = function()
 			local RandomBasketball, ErrorMessage
@@ -4026,37 +4270,7 @@ local BasketBallButton = UtilitiesGroupbox:AddButton({
 
 
 
-local PoliceGroupbox = Tabs.Localplayer:AddLeftGroupbox("Police", "")
-
-local ArrestAuraToggle = PoliceGroupbox:AddToggle("ArrestAuraToggle", {
-    Text = "Arrest Aura",
-    Default = false,
-    Tooltip = "Arrest nearby criminals",
-    Callback = function(Value)
-		if LRM_IsUserPremium and LRM_UserNote ~= "Ad Reward" then
-			_G.ArrestAura = Value
-			ArrestAura()
-		elseif Value then
-			WindUI:Notify({
-				Title = "Warning (Premium Feature)",
-				Description = "'Arrest Aura' is a Premium feature, buy ERX Premium to be able to use this feature (check in the Discord Server how).",
-				Duration = 10,
-			})
-		end
-    end
-})
-
-local ArrestAuraSlider = PoliceGroupbox:AddSlider("ArrestDistanceSlider", {
-    Text = "Arrest Aura Distance",
-    Default = 12,
-    Min = 1,
-    Max = 15,
-    Rounding = 0,
-    Compact = false,
-    Callback = function(NumberValue)
-        _G.ArrestAuraDistance = tonumber(NumberValue)
-    end
-})
+PoliceGroupbox = Tabs.Localplayer:AddLeftGroupbox("Police", "")
 
 
 local AutoArrestToggle
@@ -4097,6 +4311,39 @@ AutoArrestToggle = PoliceGroupbox:AddToggle("AutoArrestToggle", {
     end
 })
 
+PoliceGroupbox:AddDivider()
+
+PoliceGroupbox:AddToggle("ArrestAuraToggle", {
+    Text = "Arrest Aura",
+    Default = false,
+    Tooltip = "Arrest nearby criminals",
+    Callback = function(Value)
+		if LRM_IsUserPremium and LRM_UserNote ~= "Ad Reward" then
+			_G.ArrestAura = Value
+			ArrestAura()
+		elseif Value then
+			WindUI:Notify({
+				Title = "Warning (Premium Feature)",
+				Description = "'Arrest Aura' is a Premium feature, buy ERX Premium to be able to use this feature (check in the Discord Server how).",
+				Duration = 10,
+			})
+		end
+    end
+})
+
+PoliceGroupbox:AddSlider("ArrestDistanceSlider", {
+    Text = "Arrest Aura Distance",
+    Default = 12,
+    Min = 1,
+    Max = 15,
+    Rounding = 0,
+    Compact = false,
+    Callback = function(NumberValue)
+        _G.ArrestAuraDistance = tonumber(NumberValue)
+    end
+})
+
+
 
 
 
@@ -4117,10 +4364,10 @@ AutoArrestToggle = PoliceGroupbox:AddToggle("AutoArrestToggle", {
 
 
 
-local PlayersGroupbox = Tabs.Players:AddRightGroupbox("Players", "")
+PlayersGroupbox = Tabs.Players:AddLeftGroupbox("Players", "")
 
 
-local ChatLogsToggle = PlayersGroupbox:AddToggle("ChatLogs", {
+PlayersGroupbox:AddToggle("ChatLogs", {
     Text = "Chat Spy",
     Default = false,
     Tooltip = "This is a toggle",
@@ -4129,7 +4376,7 @@ local ChatLogsToggle = PlayersGroupbox:AddToggle("ChatLogs", {
     end,
 })
 
-local AdminCommandNToggle = PlayersGroupbox:AddToggle("AdminCmdNotify", {
+PlayersGroupbox:AddToggle("AdminCmdNotify", {
     Text = "Admin Command Notifier",
     Default = false,
     Tooltip = "This is a toggle",
@@ -4142,67 +4389,1259 @@ local AdminCommandNToggle = PlayersGroupbox:AddToggle("AdminCmdNotify", {
 
 
 
+TrollingGroupbox = Tabs.Trolling:AddLeftGroupbox("Trolling", "")
 
 
 
-
-
-
-
-
-
-
-
-local InfZoomToggle = MovementGroupbox:AddToggle("InfZoom", {
-    Text = "Infinite Zoom",
+WalkflingToggle = TrollingGroupbox:AddToggle("WalkflingToggle", {
+    Text = "Walkfling",
     Default = false,
-    Tooltip = "This is a toggle",
+    Tooltip = "Walk into players/vehicles to fling them",
     Callback = function(Value)
-		_G.InfZoom = Value
-			
-		if Value then
-			local Old = LocalPlayer.CameraMaxZoomDistance
-				
-			while _G.InfZoom and task.wait() do
-				LocalPlayer.CameraMaxZoomDistance = 1e5
+        _G.WalkFling = Value
+    end
+})
+
+DriveflingToggle = TrollingGroupbox:AddToggle("DriveflingToggle", {
+    Text = "Drivefling",
+    Default = false,
+    Tooltip = "Drive into players/vehicles to fling them",
+    Callback = function(Value)
+        _G.CarFling = Value
+    end
+})
+
+FakeModCallsToggle = TrollingGroupbox:AddToggle("FakeModCallsToggle", {
+    Text = "Fake Mod Calls",
+    Default = false,
+    Tooltip = "Respond to mod calls",
+    Callback = function(Value)
+			if LRM_IsUserPremium and LRM_UserNote ~= "Ad Reward" then
+				_G.DisplayModCalls = Value
 			end
-				
-			LocalPlayer.CameraMaxZoomDistance = Old
-		end
     end
 })
 
 
+PunchAuraToggle = TrollingGroupbox:AddToggle("PunchAuraToggle", {
+    Text = "Punch Aura",
+    Default = false,
+    Tooltip = "Punch nearby players",
+    Callback = function(Value)
+			_G.PunchAura = Value
+
+			while _G.PunchAura and task.wait(0.2) do
+				task.spawn(pcall, function()
+					if Functions:IsAlive(Humanoid) then
+						for _,Player in ipairs(Players:GetPlayers()) do
+							if Player == LocalPlayer then continue end
+
+							local THumanoid = Player and Player.Character and Player.Character:FindFirstChildOfClass("Humanoid")
+
+							if THumanoid and Player.Character.PrimaryPart and THumanoid.Health > 0.101 then
+								local PlayerDistance = LocalPlayer:DistanceFromCharacter(Player.Character.PrimaryPart.Position)
+
+								if PlayerDistance < 17 then
+									PunchEvent:FireServer(Player)
+								end
+							end
+						end
+					end
+				end)
+			end
+    end
+})
+
+
+
+	_G.Invisibility = false
+
+	local InvisibilityExploit
+
+InvisibilityExploit = TrollingGroupbox:AddToggle("InvisibilityExploit", {
+    Text = "Invisibility",
+    Default = false,
+    Tooltip = "Become Invisible to other players",
+    Callback = function(Value)
+			_G.Invisibility = Value
+			
+			if not Functions:IsAlive(Humanoid) then
+				return InvisibilityExploit:SetValue(false)
+			end
+
+			if _G.Invisibility and HumanoidRootPart then
+				if Character:FindFirstChild("InvisMark") or Functions:IsDisablerOn() then
+					Library:Notify({
+						Title = "Invisibility",
+						Description = (Character:FindFirstChild("InvisMark") and "You are already invisible." or "You cannot use this while having 'God Mode' Enabled"),
+						Duration = 4,
+					})
+					
+					return InvisibilityExploit:SetValue(false)
+				end
+
+				local OldCFrame = HumanoidRootPart.CFrame
+
+				Functions:ClientTP(HumanoidRootPart.CFrame * CFrame.new(0, 1e7, 0))
+
+				Humanoid.PlatformStand = true
+
+				task.wait(Functions:GetPing() + 0.1)
+
+				Functions:SetHookFor(RagdollEvent, "OnClientEvent", function() end, false) -- Disable Ragdoll Effects
+				
+				local StartTick = tick()
+				local Response
+				
+				while Response ~= "Success" or tick() - StartTick > 3 do
+					Response = ToggleRagdoll:InvokeServer()
+					if Response == "Success" then
+						break
+					end
+					
+					HumanoidRootPart.Velocity = Vector3.zero
+				end
+				
+				if tick() - StartTick > 3 then
+					Library:Notify({
+						Title = "Invisibility",
+						Description = "Invis timeout, Please try again!",
+						Duration = 5,
+					})
+					
+					Functions:ClientTP(OldCFrame)
+					return InvisibilityExploit:SetValue(false)
+				end
+
+				repeat task.wait() until Character:FindFirstChild("RAGDOLLED")
+				
+				local Mark = Character.RAGDOLLED
+				Mark.Name = "InvisMark"
+
+				Mark.Destroying:Once(function()
+					if _G.Invisibility then
+						Library:Notify({
+							Title = "Invisibility",
+							Description = "You are no longer Invisible.",
+							Duration = 5,
+						})
+
+						task.delay(0.5, function()
+							InvisibilityExploit:SetValue(false)
+						end)
+					end
+				end)
+
+				for _, v in ipairs(Character:GetDescendants()) do
+					if v:IsA("Motor6D") then
+						v.Part1 = v.Parent
+					end
+				end
+				
+				HumanoidRootPart.Velocity = Vector3.zero
+
+				task.wait()
+
+				Functions:SetHookFor(RagdollEvent, "OnClientEvent", false) -- Revert Hook
+
+				task.wait(0.5)
+				Functions:ClientTP(OldCFrame)
+				Humanoid.PlatformStand = false
+
+				Library:Notify({
+					Title = "Invisibility",
+					Description = "Successfully made you invisible!",
+					Duration = 5,
+				})
+
+				for _, BasePart in ipairs(Character:GetChildren()) do
+					if BasePart:IsA("BasePart") and BasePart.Transparency == 0 then
+						BasePart.Transparency = 0.6
+					end
+				end
+			elseif Character:FindFirstChild("InvisMark") then
+				Library:Notify({
+					Title = "Invisibility",
+					Description = "Turning off invisibility, Please wait!",
+					Duration = 5,
+				})
+
+				local Response
+				while Response ~= "Success" do
+					Response = ToggleRagdoll:InvokeServer()
+					task.wait(0.2)
+				end
+
+				Library:Notify({
+					Title = "Invisibility",
+					Description = "Successfully turned off invisibility.",
+					Duration = 3,
+				})
+
+				for _, BasePart in ipairs(Character:GetChildren()) do
+					if BasePart:IsA("BasePart") and BasePart.Transparency >= 0.51 and BasePart.Transparency <= 0.8 then
+						BasePart.Transparency = 0
+					end
+				end
+			end
+    end
+})
+	LocalPlayer.CharacterAdded:Connect(function()
+		InvisibilityExploit:SetValue(false)
+	end)
+
+
+	task.spawn(function()
+		local Cooldown = 0.5
+		local OnCooldown = false
+
+    MakeClosestButton = TrollingGroupbox:AddButton({
+        Text = "Make Closest Vehicle Dirty",
+        Func = function()
+				if not LRM_IsUserPremium or LRM_UserNote == "Ad Reward" then
+					WindUI:Notify({
+						Title = "Warning (Premium Feature)",
+						Content = "'Make Closest Vehicle Dirt' is a Premium feature, buy ERX Premium to be able to use this feature (check in the Discord Server how).",
+						Duration = 10,
+					})
+					return
+				end
+
+				if OnCooldown == true then return end
+
+				if Functions:IsDisablerOn() then
+					Library:Notify({
+						Title = "VehicleDirt",
+						Description = "Cannot use this feature while having God Mode on!",
+						Duration = 5,
+					})
+
+					return
+				end
+				local ClosestVehicle = Functions:GetClosestVehicle(true)
+
+				if not ClosestVehicle then
+					Library:Notify({
+						Title = "Dirtify",
+						Description = "No close vehicle found",
+						Duration = 5,
+					})
+					return
+				end
+
+				OnCooldown = true
+				task.delay(Cooldown, function()
+					OnCooldown = false
+				end)
+
+				ClosestVehicle.DriverSeat:Sit(Humanoid)
+
+				task.wait(Functions:GetPing() - 0.07)
+
+				SetCarDirt:FireServer(ClosestVehicle, -9e9)
+			end
+		})
+    end)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function SetupVisualsGroupbox()
+    local gb = Tabs.Visuals:AddLeftGroupbox("World", "")
+
+    gb:AddToggle("InfZoom", {
+        Text = "Infinite Zoom",
+        Default = false,
+        Tooltip = "This is a toggle",
+        Callback = function(v)
+            _G.InfZoom = v
+            if v then
+                local old = LocalPlayer.CameraMaxZoomDistance
+                while _G.InfZoom and task.wait() do
+                    LocalPlayer.CameraMaxZoomDistance = 1e5
+                end
+                LocalPlayer.CameraMaxZoomDistance = old
+            end
+        end
+    })
+
+    gb:AddDivider()
 	_G.SelectedWeather = "Snow"
 	_G.ChangeWorldTime = false
 	_G.ClockTime = 12
 
-    local WeeatherDropdown = MovementGroupbox:AddDropdown("WeatherDropdown", {
-		Values = (function()
-			local WeatherTypes = LocalPlayer:WaitForChild("PlayerScripts"):WaitForChild("Weather", 9e9):WaitForChild("WeatherTypes", 9e9)
-			local names = {}
-			for _, v in ipairs(WeatherTypes:GetChildren()) do
-				table.insert(names, v.Name)
-			end
-			return names
-		end)(),
-    Default = 1,
-    Multi = false,
-    Text = "Weeathers",
-    Tooltip = "This is a dropdown",
+    gb:AddDropdown("WeatherDropdown", {
+        Values = (function()
+            local names = {}
+            for _, v in ipairs(LocalPlayer:WaitForChild("PlayerScripts")
+                :WaitForChild("Weather", 9e9)
+                :WaitForChild("WeatherTypes", 9e9):GetChildren()) do
+                names[#names + 1] = v.Name
+            end
+            return names
+        end)(),
+        Default = 1,
+        Multi = false,
+        Text = "Weeathers",
+        Tooltip = "This is a dropdown",
+        Callback = function(v) _G.SelectedWeather = v end
+    })
+
+    local ChangeWeatherConnection
+    task.spawn(function()
+        for _, f in ipairs(GetConnections(ChangeWeather.OnClientEvent)) do
+            if f.Function then
+                ChangeWeatherConnection = f.Function
+                break
+            end
+        end
+    end)
+
+    gb:AddButton({
+        Text = "Change Weather",
+        Func = function()
+            if _G.SelectedWeather and ChangeWeatherConnection then
+                ChangeWeatherConnection(_G.SelectedWeather)
+            end
+        end,
+        DoubleClick = false
+    })
+
+    gb:AddDivider()
+
+    TimeSlider = gb:AddSlider("TimeSlider", {
+    Text = "Time",
+    Default = 12,
+    Min = 0,
+    Max = 23,
+    Rounding = 0,
+    Compact = false,
     Callback = function(Value)
-        _G.SelectedWeather = Value
+			_G.ClockTime = tonumber(Value)
+			if _G.ChangeWorldTime then
+				Lighting.ClockTime = _G.ClockTime
+			end
     end
 })
 
-	local ChangeWeatherConnection
-	task.spawn(function()
-		for _, Func in ipairs(GetConnections(ChangeWeather.OnClientEvent)) do
-			if Func.Function then
-				ChangeWeatherConnection = Func.Function
+
+	local TimeConnection
+        gb:AddToggle("TimeChangeZoom", {
+        Text = "Time Changer",
+        Default = false,
+        Tooltip = "Change the world time (Client-Sided)",
+        Callback = function(Value)
+			_G.ChangeWorldTime = Value
+
+			if TimeConnection then
+				TimeConnection:Disconnect()
+				TimeConnection = nil
+				return
 			end
-		end
-	end)
+
+			if Value then
+				Lighting.ClockTime = _G.ClockTime
+				TimeConnection = Lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
+					if Lighting.ClockTime ~= _G.ClockTime then
+						Lighting.ClockTime = _G.ClockTime
+					end
+				end)
+			end
+        end
+    })
+end
+
+
+FakeChatGroupbox = Tabs.Visuals:AddRightGroupbox("Fake Chat", "")
+
+_G.FakeChatNameInput = ""
+_G.FakeChatInput = ""
+
+PlayerNameInput = FakeChatGroupbox:AddInput("PlayerNameInput", {
+    Text = "Player Name",
+    Default = "",
+    Numeric = false,
+    Finished = false, -- Only calls callback when you press enter
+    Placeholder = "PlayerName",
+    Callback = function(Value)
+        _G.FakeChatNameInput = Value
+    end
+})
+
+MessageInput = FakeChatGroupbox:AddInput("MessageInput", {
+    Text = "Fake Chat Message",
+    Default = "",
+    Numeric = false,
+    Finished = false, -- Only calls callback when you press enter
+    Placeholder = "LibertyX on top!",
+    Callback = function(Value)
+        _G.FakeChatInput = Value  -- FIXED here: assign to FakeChatInput, not FakeChatNameInput
+    end
+})
+
+SendFakeMessageButton = FakeChatGroupbox:AddButton({
+    Text = "Send Fake Chat",
+    Func = function()
+        local inputName, foundPlayer = _G.FakeChatNameInput, nil
+
+        if not inputName or inputName == "" then return end
+        if not _G.FakeChatInput or _G.FakeChatInput == "" then return end  -- optionally prevent empty message
+
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                if string.find(string.lower(player.Name), inputName:lower(), 1, true) or 
+                   string.find(string.lower(player.DisplayName), inputName:lower(), 1, true) then
+                    foundPlayer = player
+                    break
+                end
+            end
+        end
+
+        if inputName:lower() == "me" then
+            foundPlayer = LocalPlayer
+        end
+
+        if foundPlayer and foundPlayer.Character then
+            ChatService:Chat(foundPlayer.Character, _G.FakeChatInput, Enum.ChatColor.White)
+        end
+    end,
+    DoubleClick = false
+})
+
+
+
+--// Visuals
+local ESPGroupbox = Tabs.Visuals:AddLeftGroupbox("ESP", "")
+
+
+
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local CurrentCamera = workspace.CurrentCamera
+
+--// Keep character models from unloading at distance
+local function makeCharacterPersistent(character)
+    if character and character.ModelStreamingMode ~= Enum.ModelStreamingMode.Persistent then
+        character.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
+    end
+end
+
+local function handlePlayer(player)
+    if player.Character then
+        makeCharacterPersistent(player.Character)
+    end
+
+    player.CharacterAdded:Connect(makeCharacterPersistent)
+end
+
+
+
+--// Drawing Tables
+local headdots, nametags, distances = {}, {}, {}
+local vehicleDots, vehicleNametags, vehicleDistances = {}, {}, {}
+
+--// Flags
+local ModeratorESPEnabled = false
+local CriminalESPEnabled = false
+local PoliceESPEnabled = false
+local SheriffESPEnabled = false
+local CivilianESPEnabled = false
+local FireDeptESPEnabled = false
+local DOTESPEnabled = false
+local BountyVehicleESPEnabled = false
+local BountyVehicleCount = 0
+local PoliceCount = 0
+local CriminalCount = 0
+local ModeratorCount = 0
+
+
+
+
+-- Drawing for the vehicle counts (increased size)
+local vehicleLabel = Drawing.new("Text")
+vehicleLabel.Visible = false
+vehicleLabel.Transparency = 1
+vehicleLabel.Color = Color3.new(1, 1, 1)
+vehicleLabel.Text = "Bounty Vehicle Count: 0"
+vehicleLabel.Font = Drawing.Fonts["Plex"]
+vehicleLabel.Size = 24  -- Increased size
+vehicleLabel.Position = Vector2.new(CurrentCamera.ViewportSize.X - 200, CurrentCamera.ViewportSize.Y / 2 + 60)
+vehicleLabel.Outline = true
+vehicleLabel.OutlineColor = Color3.new(0, 0, 0)
+
+
+--// Drawing for the counts (increased size)
+local policeLabel = Drawing.new("Text")
+policeLabel.Visible = false
+policeLabel.Transparency = 1
+policeLabel.Color = Color3.new(1, 1, 1)
+policeLabel.Text = "Police/Sheriff Count: 0"
+policeLabel.Font = Drawing.Fonts["Plex"]
+policeLabel.Size = 24  -- Increased size
+policeLabel.Position = Vector2.new(CurrentCamera.ViewportSize.X - 200, CurrentCamera.ViewportSize.Y / 2 - 20)
+policeLabel.Outline = true
+policeLabel.OutlineColor = Color3.new(0, 0, 0)
+
+local criminalLabel = Drawing.new("Text")
+criminalLabel.Visible = false
+criminalLabel.Transparency = 1
+criminalLabel.Color = Color3.new(1, 1, 1)
+criminalLabel.Text = "Criminal Count: 0"
+criminalLabel.Font = Drawing.Fonts["Plex"]
+criminalLabel.Size = 24  -- Increased size
+criminalLabel.Position = Vector2.new(CurrentCamera.ViewportSize.X - 200, CurrentCamera.ViewportSize.Y / 2 + 20)
+criminalLabel.Outline = true
+criminalLabel.OutlineColor = Color3.new(0, 0, 0)
+
+
+local ModESPToggle = ESPGroupbox:AddToggle("ModToggle", {
+    Text = "Moderator ESP",
+    Default = false,
+    Tooltip = "This is a toggle",
+    Callback = function(Value)
+        ModeratorESPEnabled = Value
+    end
+})
+
+local PoliceESPToggle = ESPGroupbox:AddToggle("PoliceToggle", {
+    Text = "Police ESP",
+    Default = false,
+    Tooltip = "This is a toggle",
+    Callback = function(Value)
+        PoliceESPEnabled = Value
+    end
+})
+
+local SheriffESPToggle = ESPGroupbox:AddToggle("SheriffToggle", {
+    Text = "Sheriff ESP",
+    Default = false,
+    Tooltip = "This is a toggle",
+    Callback = function(Value)
+        SheriffESPEnabled = Value
+    end
+})
+
+local CriminalESPToggle = ESPGroupbox:AddToggle("CriminalToggle", {
+    Text = "Criminal ESP",
+    Default = false,
+    Tooltip = "This is a toggle",
+    Callback = function(Value)
+        CriminalESPEnabled = Value
+    end
+})
+
+local BountyVESPToggle = ESPGroupbox:AddToggle("BountyVToggle", {
+    Text = "Bounty Vehicle ESP",
+    Default = false,
+    Tooltip = "This is a toggle",
+    Callback = function(Value)
+        BountyVehicleESPEnabled = Value
+    end
+})
+
+local CivilianESPToggle = ESPGroupbox:AddToggle("CivilianToggle", {
+    Text = "Civilian ESP",
+    Default = false,
+    Tooltip = "This is a toggle",
+    Callback = function(Value)
+        CivilianESPEnabled = Value
+    end
+})
+
+local FireESPToggle = ESPGroupbox:AddToggle("FireToggle", {
+    Text = "Fire Department ESP",
+    Default = false,
+    Tooltip = "This is a toggle",
+    Callback = function(Value)
+        FireDeptESPEnabled = Value
+    end
+})
+
+local DotESPToggle = ESPGroupbox:AddToggle("DotToggle", {
+    Text = "DOT ESP",
+    Default = false,
+    Tooltip = "This is a toggle",
+    Callback = function(Value)
+        DOTESPEnabled = Value
+    end
+})
+
+
+
+
+--// Character Check
+local function ensureCharLoaded(player)
+    return player and player.Character and player.Character:FindFirstChild("Head") and player.Character:FindFirstChild("Humanoid")
+end
+
+local function getTeamTag(player)
+    if player and player:IsA("Player") then
+        -- Check if player has a child named 'IsMod' (BoolValue), presence only
+        if player:FindFirstChild("IsMod") then
+            return "[MOD]", Color3.fromRGB(255, 215, 0)
+        end
+
+        if player:FindFirstChild("Is_Wanted") then
+            return "[CRIMINAL]", Color3.new(1, 0, 0)
+        end
+
+        if player.Team then
+            local name = player.Team.Name
+            if name == "Police" then
+                return "[POLICE]", Color3.fromRGB(0, 100, 255)
+            elseif name == "Sheriff" then
+                return "[SHERIFF]", Color3.fromRGB(160, 100, 40)
+            elseif name == "Fire" then
+                return "[FIRE DEPT]", Color3.fromRGB(255, 69, 0)
+            elseif name == "DOT" then
+                return "[DOT]", Color3.fromRGB(0, 150, 0)
+            elseif name == "Civilian" then
+                return "[CIVILIAN]", Color3.fromRGB(180, 180, 180)
+            end
+        end
+    end
+
+    return "", Color3.new(1, 1, 1)
+end
+
+
+
+
+
+
+
+
+
+local function createESP(player)
+    if player == LocalPlayer then return end
+
+    local headDot = Drawing.new("Circle")
+    headDot.Visible = false
+    headDot.Transparency = 1
+    headDot.Color = Color3.new(0, 0, 1)
+    headDot.NumSides = 32
+    headDot.Radius = 5
+    headDot.Thickness = 1
+    headdots[player] = headDot
+
+    local nametag = Drawing.new("Text")
+    nametag.Visible = false
+    nametag.Transparency = 1
+    nametag.Color = Color3.new(1, 1, 1)
+    nametag.Text = player.Name
+    nametag.Font = Drawing.Fonts.UI -- Smoother than "Plex"
+    nametag.Size = 18
+    nametag.Center = true
+    nametag.Outline = true
+    nametag.OutlineColor = Color3.new(0, 0, 0)
+    nametags[player] = nametag
+
+    local distance = Drawing.new("Text")
+    distance.Visible = false
+    distance.Transparency = 1
+    distance.Color = Color3.new(1, 1, 1)
+    distance.Font = Drawing.Fonts.UI -- Smoother than "Plex"
+    distance.Size = 16
+    distance.Center = true
+    distance.Outline = true
+    distance.OutlineColor = Color3.new(0, 0, 0)
+    distances[player] = distance
+end
+
+
+--// Remove ESP
+local function removeESP(player)
+    if headdots[player] then headdots[player]:Destroy() headdots[player] = nil end
+    if nametags[player] then nametags[player]:Destroy() nametags[player] = nil end
+    if distances[player] then distances[player]:Destroy() distances[player] = nil end
+end
+
+--// Update Counts
+local function updateCounts()
+    PoliceCount = 0
+    CriminalCount = 0
+    for _, player in pairs(Players:GetPlayers()) do
+        if player.Team then
+            if player.Team.Name == "Police" or player.Team.Name == "Sheriff" then
+                PoliceCount = PoliceCount + 1
+            end
+        end
+        if player:FindFirstChild("Is_Wanted") then
+            CriminalCount = CriminalCount + 1
+        end
+    end
+    policeLabel.Text = "Police/Sheriff Count: " .. PoliceCount
+    criminalLabel.Text = "Criminal Count: " .. CriminalCount
+end
+
+
+--// Init for existing & future players
+for _, player in pairs(Players:GetPlayers()) do createESP(player) end
+Players.PlayerAdded:Connect(createESP)
+Players.PlayerRemoving:Connect(removeESP)
+
+--// Make characters persistent so they don’t unload
+for _, player in pairs(Players:GetPlayers()) do
+    handlePlayer(player)
+end
+Players.PlayerAdded:Connect(handlePlayer)
+
+
+--// ESP Render Loop
+RunService.RenderStepped:Connect(function()
+    updateCounts()
+
+    for player, dot in pairs(headdots) do
+        local isVisible = false
+
+        if ensureCharLoaded(player) and ensureCharLoaded(LocalPlayer) then
+            local head = player.Character:FindFirstChild("Head")
+            local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+
+            if head and hrp then
+                local headPos, onScreen = CurrentCamera:WorldToViewportPoint(head.Position)
+                if onScreen and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                    
+                    -- Get role tag and color
+                    local tag, tagColor = getTeamTag(player)
+
+                    if (tag == "[POLICE]" and PoliceESPEnabled) or
+                    (tag == "[SHERIFF]" and SheriffESPEnabled) or
+                    (tag == "[FIRE DEPT]" and FireDeptESPEnabled) or
+                    (tag == "[DOT]" and DOTESPEnabled) or
+                    (tag == "[CRIMINAL]" and CriminalESPEnabled) or
+                    (tag == "[CIVILIAN]" and CivilianESPEnabled) or
+                    (tag == "[MOD]" and ModeratorESPEnabled) then
+
+
+
+
+                        dot.Visible = true
+                        dot.Position = Vector2.new(headPos.X, headPos.Y)
+                        dot.Color = tagColor
+
+                        nametags[player].Visible = true
+                        nametags[player].Position = Vector2.new(headPos.X, headPos.Y - 30)
+                        nametags[player].Text = player.Name .. " " .. tag
+                        nametags[player].Color = tagColor
+
+                        distances[player].Visible = true
+                        distances[player].Text = "[" .. tostring(math.floor((hrp.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude)) .. "m]"
+                        distances[player].Position = Vector2.new(headPos.X, headPos.Y + 15)
+                        distances[player].Color = tagColor
+
+                        isVisible = true
+                    end
+                end
+            end
+        end
+
+        -- Hide everything if not visible
+        if not isVisible then
+            dot.Visible = false
+            if nametags[player] then nametags[player].Visible = false end
+            if distances[player] then distances[player].Visible = false end
+        end
+    end
+end)
+
+
+
+
+-- Character Check
+local function ensureVehicleLoaded(vehicle)
+    return vehicle and vehicle.PrimaryPart
+end
+
+-- Create ESP for Bounty Vehicles
+local function createBountyVehicleESP(vehicle)
+    if vehicle == LocalPlayer then return end
+
+    local headDot = Drawing.new("Circle")
+    headDot.Visible = false
+    headDot.Transparency = 1
+    headDot.Color = Color3.new(1, 0, 0)  -- Red for bounty vehicle
+    headDot.NumSides = 32
+    headDot.Radius = 5
+    headDot.Thickness = 1
+    vehicleDots[vehicle] = headDot
+
+    local nametag = Drawing.new("Text")
+    nametag.Visible = false
+    nametag.Transparency = 1
+    nametag.Color = Color3.new(1, 0, 0)  -- Red text for bounty vehicles
+    nametag.Text = "Bounty Vehicle"
+    nametag.Font = Drawing.Fonts.UI
+    nametag.Size = 16
+    nametag.Center = true
+    nametag.Outline = true
+    nametag.OutlineColor = Color3.new(0, 0, 0)
+    vehicleNametags[vehicle] = nametag
+
+    local distance = Drawing.new("Text")
+    distance.Visible = false
+    distance.Transparency = 1
+    distance.Color = Color3.new(1, 0, 0)  -- Red for bounty vehicle
+    distance.Font = Drawing.Fonts.UI
+    distance.Size = 16
+    distance.Center = true
+    distance.Outline = true
+    distance.OutlineColor = Color3.new(0, 0, 0)
+    vehicleDistances[vehicle] = distance
+end
+
+-- Remove ESP for Bounty Vehicle
+local function removeBountyVehicleESP(vehicle)
+    if vehicleDots[vehicle] then
+        vehicleDots[vehicle]:Destroy()
+        vehicleDots[vehicle] = nil
+    end
+    if vehicleNametags[vehicle] then
+        vehicleNametags[vehicle]:Destroy()
+        vehicleNametags[vehicle] = nil
+    end
+    if vehicleDistances[vehicle] then
+        vehicleDistances[vehicle]:Destroy()
+        vehicleDistances[vehicle] = nil
+    end
+end
+
+-- Update Bounty Vehicle Count
+local function updateBountyVehicleCount()
+    BountyVehicleCount = 0
+    for _, vehicle in pairs(Workspace:WaitForChild("BountyVehicles"):WaitForChild("Vehicles"):GetChildren()) do
+        if ensureVehicleLoaded(vehicle) then
+            BountyVehicleCount = BountyVehicleCount + 1
+        end
+    end
+    vehicleLabel.Text = "Bounty Vehicle Count: " .. BountyVehicleCount
+end
+
+-- ESP Render Loop for Bounty Vehicles
+RunService.RenderStepped:Connect(function()
+    updateBountyVehicleCount()
+
+    for vehicle, dot in pairs(vehicleDots) do
+        local isVisible = false
+
+        if ensureVehicleLoaded(vehicle) and BountyVehicleESPEnabled then
+            local vehiclePos, onScreen = CurrentCamera:WorldToViewportPoint(vehicle.PrimaryPart.Position)
+            if onScreen then
+                dot.Visible = true
+                dot.Position = Vector2.new(vehiclePos.X, vehiclePos.Y)
+
+                vehicleNametags[vehicle].Visible = true
+                vehicleNametags[vehicle].Position = Vector2.new(vehiclePos.X, vehiclePos.Y - 30)
+
+                vehicleDistances[vehicle].Visible = true
+                vehicleDistances[vehicle].Position = Vector2.new(vehiclePos.X, vehiclePos.Y + 15)
+
+                vehicleDistances[vehicle].Text = "[" .. math.floor((vehicle.PrimaryPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude) .. "m]"
+
+                isVisible = true
+            end
+        end
+
+        if not isVisible then
+            dot.Visible = false
+            if vehicleNametags[vehicle] then vehicleNametags[vehicle].Visible = false end
+            if vehicleDistances[vehicle] then vehicleDistances[vehicle].Visible = false end
+        end
+    end
+end)
+
+
+-- Init for existing Bounty Vehicles
+for _, vehicle in pairs(Workspace:WaitForChild("BountyVehicles"):WaitForChild("Vehicles"):GetChildren()) do
+    createBountyVehicleESP(vehicle)
+end
+
+-- Create ESP for new Bounty Vehicles
+Workspace.BountyVehicles.Vehicles.ChildAdded:Connect(function(vehicle)
+    if vehicle:IsA("Model") then
+        createBountyVehicleESP(vehicle)
+    end
+end)
+
+-- Remove ESP for removed Bounty Vehicles
+Workspace.BountyVehicles.Vehicles.ChildRemoved:Connect(function(vehicle)
+    if vehicle:IsA("Model") then
+        removeBountyVehicleESP(vehicle)
+    end
+end)
+
+
+
+
+
+
+
+
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local CurrentCamera = workspace.CurrentCamera
+
+-- Keep character models from unloading at distance
+local function makeCharacterPersistent(character)
+    if character and character.ModelStreamingMode ~= Enum.ModelStreamingMode.Persistent then
+        character.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
+    end
+end
+
+local function handlePlayer(player)
+    if player.Character then
+        makeCharacterPersistent(player.Character)
+    end
+
+    player.CharacterAdded:Connect(makeCharacterPersistent)
+end
+
+-- Drawing Tables
+local headdots, nametags, distances = {}, {}, {}
+local vehicleDots, vehicleNametags, vehicleDistances = {}, {}, {}
+
+-- Flags
+local ModeratorESPEnabled = false
+local CriminalESPEnabled = false
+local PoliceESPEnabled = false
+local SheriffESPEnabled = false
+local CivilianESPEnabled = false
+local FireDeptESPEnabled = false
+local DOTESPEnabled = false
+local BountyVehicleESPEnabled = false
+
+-- Counts
+local PoliceCount, SheriffCount, CriminalCount = 0, 0, 0
+local CivilianCount, FireDeptCount, DOTCount = 0, 0, 0
+local BountyVehicleCount = 0
+local ModeratorCount = 0 -- added moderator count
+
+-- Drawing for vehicle counts label
+local vehicleLabel = Drawing.new("Text")
+vehicleLabel.Visible = false
+vehicleLabel.Transparency = 1
+vehicleLabel.Color = Color3.new(1, 1, 1)
+vehicleLabel.Text = "Bounty Vehicle Count: 0"
+vehicleLabel.Font = Drawing.Fonts["Plex"]
+vehicleLabel.Size = 24
+vehicleLabel.Position = Vector2.new(CurrentCamera.ViewportSize.X - 200, CurrentCamera.ViewportSize.Y / 2 + 60)
+vehicleLabel.Outline = true
+vehicleLabel.OutlineColor = Color3.new(0, 0, 0)
+
+-- Drawing for police/sheriff counts label
+local policeLabel = Drawing.new("Text")
+policeLabel.Visible = false
+policeLabel.Transparency = 1
+policeLabel.Color = Color3.new(1, 1, 1)
+policeLabel.Text = "Police/Sheriff Count: 0"
+policeLabel.Font = Drawing.Fonts["Plex"]
+policeLabel.Size = 24
+policeLabel.Position = Vector2.new(CurrentCamera.ViewportSize.X - 200, CurrentCamera.ViewportSize.Y / 2 - 20)
+policeLabel.Outline = true
+policeLabel.OutlineColor = Color3.new(0, 0, 0)
+
+local criminalLabel = Drawing.new("Text")
+criminalLabel.Visible = false
+criminalLabel.Transparency = 1
+criminalLabel.Color = Color3.new(1, 1, 1)
+criminalLabel.Text = "Criminal Count: 0"
+criminalLabel.Font = Drawing.Fonts["Plex"]
+criminalLabel.Size = 24
+criminalLabel.Position = Vector2.new(CurrentCamera.ViewportSize.X - 200, CurrentCamera.ViewportSize.Y / 2 + 20)
+criminalLabel.Outline = true
+criminalLabel.OutlineColor = Color3.new(0, 0, 0)
+
+-- Create label pairs (name + count) helper
+local function createLabelPair(name)
+    local labelName = Drawing.new("Text")
+    labelName.Visible = false
+    labelName.Transparency = 1
+    labelName.Color = Color3.new(1, 1, 1)
+    labelName.Text = name
+    labelName.Font = Drawing.Fonts.Monospace
+    labelName.Size = 22
+    labelName.Outline = true
+    labelName.OutlineColor = Color3.new(0, 0, 0)
+
+    local labelCount = Drawing.new("Text")
+    labelCount.Visible = false
+    labelCount.Transparency = 1
+    labelCount.Color = Color3.new(1, 1, 1)
+    labelCount.Text = "0"
+    labelCount.Font = Drawing.Fonts.Monospace
+    labelCount.Size = 22
+    labelCount.Outline = true
+    labelCount.OutlineColor = Color3.new(0, 0, 0)
+
+    return {Name = labelName, Count = labelCount}
+end
+
+-- Labels table for counts including moderator
+local Labels = {
+    Police = createLabelPair("Police Count:"),
+    Sheriff = createLabelPair("Sheriff Count:"),
+    Criminal = createLabelPair("Criminal Count:"),
+    Civilian = createLabelPair("Civilian Count:"),
+    Fire = createLabelPair("Fire Dept Count:"),
+    DOT = createLabelPair("DOT Count:"),
+    Vehicle = createLabelPair("Bounty Vehicle Count:"),
+    Moderator = createLabelPair("Moderator Count:") -- Moderator label added
+}
+
+-- Update counts function
+local function updateCounts()
+    PoliceCount, SheriffCount, CriminalCount = 0, 0, 0
+    CivilianCount, FireDeptCount, DOTCount = 0, 0, 0
+    BountyVehicleCount = 0
+    ModeratorCount = 0
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        local team = player.Team and player.Team.Name
+        if team == "Police" then
+            PoliceCount += 1
+        elseif team == "Sheriff" then
+            SheriffCount += 1
+        elseif team == "Civilian" then
+            CivilianCount += 1
+        elseif team == "Fire" then
+            FireDeptCount += 1
+        elseif team == "DOT" then
+            DOTCount += 1
+        end
+
+        if player:FindFirstChild("Is_Wanted") then
+            CriminalCount += 1
+        end
+
+        if player:FindFirstChild("IsMod") then
+            ModeratorCount += 1
+        end
+    end
+
+    local vehicleFolder = workspace:FindFirstChild("BountyVehicles")
+    if vehicleFolder and vehicleFolder:FindFirstChild("Vehicles") then
+        BountyVehicleCount = #vehicleFolder.Vehicles:GetChildren()
+    end
+
+    -- Update count texts
+    Labels.Police.Count.Text = tostring(PoliceCount)
+    Labels.Sheriff.Count.Text = tostring(SheriffCount)
+    Labels.Criminal.Count.Text = tostring(CriminalCount)
+    Labels.Civilian.Count.Text = tostring(CivilianCount)
+    Labels.Fire.Count.Text = tostring(FireDeptCount)
+    Labels.DOT.Count.Text = tostring(DOTCount)
+    Labels.Vehicle.Count.Text = tostring(BountyVehicleCount)
+    Labels.Moderator.Count.Text = tostring(ModeratorCount)
+end
+
+-- Positioning and rendering labels
+RunService.RenderStepped:Connect(function()
+    updateCounts()
+
+    local screenX, screenY = CurrentCamera.ViewportSize.X, CurrentCamera.ViewportSize.Y
+    local totalLabels = 0
+    for _, labelPair in pairs(Labels) do
+        if labelPair.Name.Visible then
+            totalLabels += 1
+        end
+    end
+
+    local labelSize = 22
+    local labelSpacing = 36
+    local approxCharWidth = 12
+    local rightPadding = 20
+    local maxLabelWidth = 220
+    local labelCountGap = 15
+
+    local totalHeight = (totalLabels - 1) * labelSpacing
+    local baseY = (screenY / 2) - (totalHeight / 2)
+
+    local baseX = screenX - rightPadding
+    local labelNameX = baseX - maxLabelWidth - labelCountGap
+    local countX = baseX
+
+    local i = 0
+    for _, labelPair in pairs(Labels) do
+        if labelPair.Name.Visible then
+            local yPos = baseY + (i * labelSpacing)
+
+            labelPair.Name.Position = Vector2.new(labelNameX, yPos)
+
+            local countText = labelPair.Count.Text
+            local countWidth = #countText * approxCharWidth
+            labelPair.Count.Position = Vector2.new(countX - countWidth, yPos)
+
+            i += 1
+        end
+    end
+end)
+
+
+
+
+
+
+
+
+
+
+
+--// Counts
+local CountsGroupbox = Tabs.Visuals:AddRightGroupbox("Counts", "")
+
+local ModCountToggle = CountsGroupbox:AddToggle("ModCountToggle", {
+    Text = "Moderator Count",
+    Default = false,
+    Tooltip = "This is a toggle",
+    Callback = function(state)
+        Labels.Moderator.Name.Visible = state
+        Labels.Moderator.Count.Visible = state
+    end
+})
+
+local PoliceCountToggle = CountsGroupbox:AddToggle("PoliceCountToggle", {
+    Text = "Police Count",
+    Default = false,
+    Tooltip = "This is a toggle",
+    Callback = function(state)
+        Labels.Police.Name.Visible = state
+        Labels.Police.Count.Visible = state
+    end
+})
+
+local SheriffCountToggle = CountsGroupbox:AddToggle("SheriffCountToggle", {
+    Text = "Sheriff Count",
+    Default = false,
+    Tooltip = "This is a toggle",
+    Callback = function(state)
+        Labels.Sheriff.Name.Visible = state
+        Labels.Sheriff.Count.Visible = state
+    end
+})
+
+local CriminalCountToggle = CountsGroupbox:AddToggle("CriminalCountToggle", {
+    Text = "Criminal ESP",
+    Default = false,
+    Tooltip = "This is a toggle",
+    Callback = function(state)
+        Labels.Criminal.Name.Visible = state
+        Labels.Criminal.Count.Visible = state
+    end
+})
+
+local BountyVCountToggle = CountsGroupbox:AddToggle("BountyVCountToggle", {
+    Text = "Bounty Vehicle Count",
+    Default = false,
+    Tooltip = "This is a toggle",
+    Callback = function(state)
+        Labels.Vehicle.Name.Visible = state
+        Labels.Vehicle.Count.Visible = state
+    end
+})
+
+local CivilianCountToggle = CountsGroupbox:AddToggle("CivilianCountToggle", {
+    Text = "Civilian Count",
+    Default = false,
+    Tooltip = "This is a toggle",
+    Callback = function(state)
+        Labels.Civilian.Name.Visible = state
+        Labels.Civilian.Count.Visible = state
+    end
+})
+
+local FireCountToggle = CountsGroupbox:AddToggle("FireCountToggle", {
+    Text = "Fire Department Count",
+    Default = false,
+    Tooltip = "This is a toggle",
+    Callback = function(state)
+        Labels.Fire.Name.Visible = state
+        Labels.Fire.Count.Visible = state
+    end
+})
+
+local DotCountToggle = CountsGroupbox:AddToggle("DotCountToggle", {
+    Text = "DOT Count",
+    Default = false,
+    Tooltip = "This is a toggle",
+    Callback = function(state)
+        Labels.DOT.Name.Visible = state
+        Labels.DOT.Count.Visible = state
+    end
+})
+
+
+
+
+
+
+
+
+
+function SetupMenuGroup()
+    local gb = Tabs["UI Settings"]:AddLeftGroupbox("Menu", "wrench")
+
+    gb:AddToggle("KeybindMenuOpen", {
+        Default = Library.KeybindFrame.Visible,
+        Text = "Open Keybind Menu",
+        Callback = function(v) Library.KeybindFrame.Visible = v end
+    })
+    gb:AddToggle("ShowCustomCursor", {
+        Text = "Custom Cursor",
+        Default = true,
+        Callback = function(v) Library.ShowCustomCursor = v end
+    })
+    gb:AddDropdown("NotificationSide", {
+        Values = { "Left", "Right" },
+        Default = "Right",
+        Text = "Notification Side",
+        Callback = function(v) Library:SetNotifySide(v) end
+    })
+    gb:AddDropdown("DPIDropdown", {
+        Values = { "50%", "75%", "100%", "125%", "150%", "175%", "200%" },
+        Default = "100%",
+        Text = "DPI Scale",
+        Callback = function(v) Library:SetDPIScale(tonumber(v:gsub("%%", ""))) end
+    })
+    gb:AddDivider()
+    gb:AddLabel("Menu bind"):AddKeyPicker("MenuKeybind", { Default = "RightShift", NoUI = true, Text = "Menu keybind" })
+    gb:AddButton("Unload", function() Library:Unload() end)
+
+    Library.ToggleKeybind = Options.MenuKeybind
+    ThemeManager:SetLibrary(Library)
+    SaveManager:SetLibrary(Library)
+    SaveManager:IgnoreThemeSettings()
+    SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
+    ThemeManager:SetFolder("MyScriptHub")
+    SaveManager:SetFolder("MyScriptHub/specific-game")
+    SaveManager:SetSubFolder("specific-place")
+    SaveManager:BuildConfigSection(Tabs["UI Settings"])
+    ThemeManager:ApplyToTab(Tabs["UI Settings"])
+    SaveManager:LoadAutoloadConfig()
+end
+
+-- Run setup functions separately so locals don't stack
+SetupVisualsGroupbox()
+SetupMenuGroup()
 
 
 end
