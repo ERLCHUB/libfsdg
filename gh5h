@@ -3914,7 +3914,7 @@ local AntiArrestToggle = UtilitiesGroupbox:AddToggle("AntiArrestToggle", {
 
 
 
-local FreeRefuelToggle = MovementGroupbox:AddToggle("FreeRefuelToggle", {
+local FreeRefuelToggle = UtilitiesGroupbox:AddToggle("FreeRefuelToggle", {
     Text = "Free Instant Refuel",
     Default = false,
     Tooltip = "Refill your car's fuel instantly for free",
@@ -3924,10 +3924,10 @@ local FreeRefuelToggle = MovementGroupbox:AddToggle("FreeRefuelToggle", {
 })
 
 
-MovementGroupbox:AddDivider()
+UtilitiesGroupbox:AddDivider()
 
 
-local MoneyAuraToggle = MovementGroupbox:AddToggle("MoneyAuraToggle", {
+local MoneyAuraToggle = UtilitiesGroupbox:AddToggle("MoneyAuraToggle", {
     Text = "Money Aura",
     Default = false,
     Tooltip = "Pick up nearby dropped money",
@@ -3936,7 +3936,7 @@ local MoneyAuraToggle = MovementGroupbox:AddToggle("MoneyAuraToggle", {
     end
 })
 
-local MADistanceSlider = MovementGroupbox:AddSlider("MAFistanceSlider", {
+local MADistanceSlider = UtilitiesGroupbox:AddSlider("MAFistanceSlider", {
     Text = "MoneyAura Distance",
     Default = 13,
     Min = 1,
@@ -3948,7 +3948,7 @@ local MADistanceSlider = MovementGroupbox:AddSlider("MAFistanceSlider", {
     end
 })
 
-MovementGroupbox:AddDivider()
+UtilitiesGroupbox:AddDivider()
 
 local FreecamToggle = UtilitiesGroupbox:AddToggle("Freecam", {
     Text = "Freecam",
@@ -3991,7 +3991,7 @@ local FreecamToggle = UtilitiesGroupbox:AddToggle("Freecam", {
 
 
 
-local BasketBallButton = MovementGroupbox:AddButton({
+local BasketBallButton = UtilitiesGroupbox:AddButton({
     Text = "Get Basketball",
     Func = function()
 			local RandomBasketball, ErrorMessage
@@ -4113,7 +4113,23 @@ AutoArrestToggle = PoliceGroupbox:AddToggle("AutoArrestToggle", {
 
 
 
-local AdminCommandNToggle = MovementGroupbox:AddToggle("AdminCmdNotify", {
+
+
+
+
+local PlayersGroupbox = Tabs.Players:AddRightGroupbox("Players", "")
+
+
+local ChatLogsToggle = PlayersGroupbox:AddToggle("ChatLogs", {
+    Text = "Chat Spy",
+    Default = false,
+    Tooltip = "This is a toggle",
+    Callback = function(Value)
+        _G.ChatSpy = Value
+    end
+})
+
+local AdminCommandNToggle = PlayersGroupbox:AddToggle("AdminCmdNotify", {
     Text = "Admin Command Notifier",
     Default = false,
     Tooltip = "This is a toggle",
@@ -4123,14 +4139,7 @@ local AdminCommandNToggle = MovementGroupbox:AddToggle("AdminCmdNotify", {
 })
 
 
-local ChatLogsToggle = MovementGroupbox:AddToggle("ChatLogs", {
-    Text = "Chat Spy",
-    Default = false,
-    Tooltip = "This is a toggle",
-    Callback = function(Value)
-        _G.ChatSpy = Value
-    end
-})
+
 
 
 
