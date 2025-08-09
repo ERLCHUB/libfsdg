@@ -1,3 +1,10 @@
+game:GetService("RunService").RenderStepped:Connect(function()
+    for _, conn in ipairs(getconnections(game:GetService("ScriptContext").Error)) do
+        conn:Disable()
+    end
+end)
+
+
 
 if not game:IsLoaded() then repeat task.wait() until game:IsLoaded() task.wait(math.random(3, 5) + math.random()) end
 
@@ -4304,5 +4311,3 @@ SaveManager:SetSubFolder("specific-place")
 SaveManager:BuildConfigSection(Tabs["UI Settings"])
 ThemeManager:ApplyToTab(Tabs["UI Settings"])
 SaveManager:LoadAutoloadConfig()
-
-end
